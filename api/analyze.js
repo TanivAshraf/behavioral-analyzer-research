@@ -1,12 +1,11 @@
-// --- Changelog ---
-// 1. Updated the getGeminiAnalysis function with the new, user-friendly prompt for consistency.
+// --- FINAL Polished Version ---
 
 async function getGeminiAnalysis(text) {
     const API_KEY = process.env.GEMINI_API_KEY;
     if (!API_KEY) throw new Error("SERVER CONFIG ERROR: GEMINI_API_KEY is not set.");
     const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
     
-    // --- New & Improved Prompt ---
+    // --- FINAL, Polished Prompt ---
     const prompt = `
     You are an expert, empathetic social media analyst and coach. Your goal is to analyze a user's text and provide a friendly, insightful, and actionable analysis. Do not be robotic or overly academic.
 
@@ -18,7 +17,7 @@ async function getGeminiAnalysis(text) {
     - The Content Creator: Produces original content (stories, ideas, visuals) to build a personal brand or share expertise.
 
     **Step 2: Handle Edge Cases.**
-    If the text is just a URL (like "tanivashraf.com"), your entire analysis should be a user-friendly instruction. Your response should be a JSON object like this: 
+    If the text is just a URL (like "linkedin.com/in/taniv-ashraf/"), your entire analysis should be a user-friendly instruction. Your response MUST be this exact JSON object: 
     { "error": "For a proper analysis, please paste the actual text content from your posts, not just a link." }
 
     **Step 3: Structure the Output.**
@@ -45,7 +44,7 @@ async function getGeminiAnalysis(text) {
     return JSON.parse(jsonMatch[1] || jsonMatch[2]);
 }
 
-export default async function handler(req, res) {
+export default async function handler(.req, res) {
   try {
     const { text } = req.body;
     if (!text || text.trim() === '') {
