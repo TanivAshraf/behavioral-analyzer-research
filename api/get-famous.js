@@ -1,28 +1,15 @@
-// --- Changelog ---
-// 1. Added a powerful 'retry' function to automatically handle temporary API errors.
-// 2. Updated the getGeminiAnalysis function with a new, user-friendly prompt.
+import { kv } from '@vercel/kv';
 
-// This function will automatically retry a failed operation
 const retry = async (fn, retries = 3, delay = 1000, finalErr = 'Failed after multiple attempts') => {
-  try {
-    return await fn();
-  } catch (err) {
-    if (retries <= 0) {
-      throw new Error(finalErr);
-    }
-    // Wait for a moment before trying again (exponential backoff)
-    await new Promise(res => setTimeout(res, delay));
-    return retry(fn, retries - 1, delay * 2, finalErr);
-  }
+  try { return await fn(); } catch (err) { if (retries <= 0) { throw new Error(finalErr); } await new Promise(res => setTimeout(res, delay)); return retry(fn, retries - 1, delay * 2, finalErr); }
 };
 
-// This is the new, user-friendly analysis function
 async function getGeminiAnalysis(text) {
     const API_KEY = process.env.GEMINI_API_KEY;
     if (!API_KEY) throw new Error("SERVER CONFIG ERROR: GEMINI_API_KEY is not set.");
     const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
     
-    // --- New & Improved Prompt ---
+    // --- FINAL, Polished Prompt ---
     const prompt = `
     You are an expert, empathetic social media analyst and coach. Your goal is to analyze a user's text and provide a friendly, insightful, and actionable analysis. Do not be robotic or overly academic.
 
@@ -34,7 +21,7 @@ async function getGeminiAnalysis(text) {
     - The Content Creator: Produces original content (stories, ideas, visuals) to build a personal brand or share expertise.
 
     **Step 2: Handle Edge Cases.**
-    If the text is just a URL (like "tanivashraf.com"), your entire analysis should be a user-friendly instruction. Your response should be a JSON object like this: 
+    If the text is just a URL (like "linkedin.com/in/taniv-ashraf/"), your entire analysis should be a user-friendly instruction. Your response MUST be this exact JSON object: 
     { "error": "For a proper analysis, please paste the actual text content from your posts, not just a link." }
 
     **Step 3: Structure the Output.**
@@ -53,13 +40,7 @@ async function getGeminiAnalysis(text) {
     `;
 
     const response = await fetch(GEMINI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
-    if (!response.ok) {
-        // This makes the retry function work for temporary server errors
-        if (response.status === 503 || response.status === 429) {
-            throw new Error(`Temporary Server Error: ${response.status}`);
-        }
-        const errorBody = await response.text(); throw new Error(`Gemini API Error (Status: ${response.status}): ${errorBody}`);
-    }
+    if (!response.ok) { if (response.status === 503 || response.status === 429) { throw new Error(`Temporary Server Error: ${response.status}`); } const errorBody = await response.text(); throw new Error(`Gemini API Error (Status: ${response.status}): ${errorBody}`); }
     const data = await response.json();
     const responseText = data.candidates[0].content.parts[0].text;
     const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```|({[\s\S]*})/);
@@ -67,37 +48,36 @@ async function getGeminiAnalysis(text) {
     return JSON.parse(jsonMatch[1] || jsonMatch[2]);
 }
 
-// The main handler, now wrapped in the retry logic
 export default async function handler(req, res) {
+    const { url, name } = req.query;
+    const cacheKey = `analysis:${name.replace(/\s+/g, '-').toLowerCase()}`;
     try {
-        const result = await retry(async () => {
-            const { url, name } = req.query;
+        let cachedResult = await kv.get(cacheKey);
+        if (cachedResult) { return res.status(200).json({ name, analysis: cachedResult }); }
+        
+        const freshResult = await retry(async () => {
             //const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY;
-            // TEMPORARY DIAGNOSTIC TEST: HARDCODING THE KEY
+// TEMPORARY DIAGNOSTIC TEST: HARDCODING THE KEY
             const SCRAPINGBEE_API_KEY = "XV92IJPZFL4VPR79QLD7UUULT9V13UKOF9HQWCBVHD8QC1AB62LQD62R4KR735BC64S2ZAXJNOY70TLV";
 
-            if (!url || !name) throw new Error('URL and name parameters are required.');
+          
             if (!SCRAPINGBEE_API_KEY) throw new Error("SERVER CONFIG ERROR: SCRAPINGBEE_API_KEY is not set.");
-
             const params = new URLSearchParams({ api_key: SCRAPINGBEE_API_KEY, url: url, extract_rules: '{"text":"body"}' });
             const scrapeResponse = await fetch(`https://app.scrapingbee.com/api/v1/?${params.toString()}`);
-            
-            if (!scrapeResponse.ok) {
-                // This makes the retry function work for temporary server errors
-                if (scrapeResponse.status === 503 || scrapeResponse.status === 429) {
-                    throw new Error(`Temporary Scraping Error: ${scrapeResponse.status}`);
-                }
-                const errorText = await scrapeResponse.text();
-                throw new Error(`Scraping service failed (Status: ${scrapeResponse.status}). Response: ${errorText}`);
-            }
-
+            if (!scrapeResponse.ok) { if (scrapeResponse.status === 503 || scrapeResponse.status === 429) { throw new Error(`Temporary Scraping Error: ${scrapeResponse.status}`); } const errorText = await scrapeResponse.text(); throw new Error(`Scraping service failed (Status: ${scrapeResponse.status}). Response: ${errorText}`); }
             const scrapedData = await scrapeResponse.json();
             const analysis = await getGeminiAnalysis(scrapedData.text.substring(0, 15000));
-            return { name, analysis };
+            return analysis;
         });
-        res.status(200).json(result);
+
+        // Check if Gemini returned our specific error message for URLs
+        if (freshResult.error) {
+             return res.status(400).json({ name, error: freshResult.error });
+        }
+        
+        await kv.setex(cacheKey, 86400, freshResult);
+        res.status(200).json({ name, analysis: freshResult });
     } catch (error) {
-        const { name } = req.query;
         console.error(`[FATAL] Processing ${name} failed after retries:`, error);
         res.status(500).json({ name, error: "An internal server error occurred after multiple attempts.", debug_info: { message: error.message }});
     }
