@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     // We are now using the ScrapingBee key
     //const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY;
     // TEMPORARY DIAGNOSTIC TEST: HARDCODING THE KEY
-const SCRAPINGBEE_API_KEY = "XV92IJPZFL4VPR79QLD7UUULT9V13UKOF9HQWCBVHD8QC1AB62LQD62R4KR735BC64S2ZAXJNOY70TLV";
+    const SCRAPINGBEE_API_KEY = "XV92IJPZFL4VPR79QLD7UUULT9V13UKOF9HQWCBVHD8QC1AB62LQD62R4KR735BC64S2ZAXJNOY70TLV";
     try {
         if (!url || !name) {
             return res.status(400).json({ error: 'URL and name parameters are required.' });
