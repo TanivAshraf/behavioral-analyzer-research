@@ -1,14 +1,15 @@
+// --- File: api/get-famous.js ---
+
 // A reusable function for the Gemini analysis logic
 async function getGeminiAnalysis(text) {
     const API_KEY = process.env.GEMINI_API_KEY;
-    // Changelog: Added specific check for the Gemini API key
     if (!API_KEY) {
         throw new Error("SERVER CONFIG ERROR: GEMINI_API_KEY environment variable is not set.");
     }
     
     const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
     
-    // IMPORTANT: Make sure your full prompt is pasted here
+    // IMPORTANT: Your full prompt goes here
     const prompt = `
     You are a computational social scientist. Your task is to analyze a user's social media text based on the "Online Engagement Matrix" and established behavioral archetypes.
 
@@ -54,7 +55,6 @@ async function getGeminiAnalysis(text) {
     }
 
     const data = await response.json();
-    // Changelog: Added robust parsing to handle potential malformed JSON from the API
     const responseText = data.candidates[0].content.parts[0].text;
     const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```|({[\s\S]*})/);
     if (!jsonMatch) {
@@ -72,7 +72,6 @@ export default async function handler(req, res) {
         if (!url || !name) {
             return res.status(400).json({ error: 'URL and name parameters are required.' });
         }
-        // Changelog: Changed the error message to be more specific and actionable.
         if (!BROWSERLESS_API_KEY) {
             throw new Error("SERVER CONFIG ERROR: BROWSERLESS_API_KEY environment variable is not set.");
         }
@@ -81,7 +80,12 @@ export default async function handler(req, res) {
         const scrapeResponse = await fetch(`https://chrome.browserless.io/content?token=${BROWSERLESS_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url, waitFor: 2000 })
+            // Changelog: Added 'stealth: true' to help evade bot detection.
+            body: JSON.stringify({ 
+                url: url, 
+                waitFor: 2000,
+                stealth: true 
+            })
         });
         
         if (!scrapeResponse.ok) {
@@ -95,7 +99,6 @@ export default async function handler(req, res) {
 
         res.status(200).json({ name, analysis });
 
-    // Changelog: Massively improved catch block for better debugging.
     } catch (error) {
         console.error(`[FATAL] Processing ${name} failed:`, error);
         res.status(500).json({ 
