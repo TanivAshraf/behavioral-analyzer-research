@@ -13,6 +13,8 @@
         button:hover { background-color: #0056b3; }
         .personality-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
         .loader { text-align: center; padding: 20px; font-style: italic; color: #666; }
+        .error-box { border: 1px solid #d9534f; background-color: #f2dede; color: #a94442; padding: 15px; margin-top: 10px; border-radius: 5px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #eee; padding: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -25,7 +27,7 @@
     <div class="container">
         <h2>Live Analysis: Public Personalities</h2>
         <div id="famous-personalities">
-            <div class="loader">Loading live analyses...</div>
+            <div class="loader">Loading and analyzing live profiles... This may take up to a minute.</div>
         </div>
     </div>
 
@@ -35,13 +37,8 @@
         <textarea id="userInput" placeholder="Paste your text here..."></textarea>
         <button id="analyzeButton">Analyze My Trajectory</button>
         <div id="user-loader" class="loader" style="display: none;">Analyzing...</div>
-        <div id="user-results" style="display: none;">
-            <h3>Your Analysis</h3>
-            <p><strong>Current Archetype:</strong> <span id="archetype"></span></p>
-            <p><strong>Prediction Reasoning:</strong> <span id="reasoning"></span></p>
-            <p><strong>Predicted Narrative:</strong> <span id="narrative"></span></p>
-            <button id="saveButton">Save This Analysis Anonymously</button>
-            <p id="save-status" style="font-size: 0.9em; color: green;"></p>
+        <div id="user-results-container" style="display: none;">
+             <!-- Results will be injected here -->
         </div>
     </div>
 
@@ -60,7 +57,6 @@
     // --- On Page Load ---
     document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('famous-personalities');
-        container.innerHTML = '<div class="loader">Loading live analyses...</div>';
         
         const promises = famousProfiles.map(profile => 
             fetch(`/api/get-famous?url=${encodeURIComponent(profile.url)}&name=${encodeURIComponent(profile.name)}`)
@@ -73,7 +69,14 @@
                 const card = document.createElement('div');
                 card.className = 'personality-card';
                 if (result.error) {
-                    card.innerHTML = `<h3>${result.name}</h3><p><em>Error fetching or analyzing profile: ${result.error}</em></p>`;
+                    card.innerHTML = `
+                        <h3>${result.name}</h3>
+                        <div class="error-box">
+                            <p><strong>Error:</strong> ${result.error}</p>
+                            <p><strong>Debug Info:</strong></p>
+                            <pre>${JSON.stringify(result.debug_info, null, 2)}</pre>
+                        </div>
+                    `;
                 } else {
                     card.innerHTML = `
                         <h3>${result.name}</h3>
@@ -84,56 +87,79 @@
                 container.appendChild(card);
             });
         }).catch(err => {
-            container.innerHTML = '<p>Could not load famous personality analyses. Please try again later.</p>';
+            container.innerHTML = `<div class="error-box"><p>A critical error occurred while fetching famous personality analyses. Please try again later.</p><pre>${err.message}</pre></div>`;
         });
     });
 
     // --- User Analysis ---
     document.getElementById('analyzeButton').addEventListener('click', async () => {
         const userInput = document.getElementById('userInput').value;
+        const resultsContainer = document.getElementById('user-results-container');
         if (userInput.trim() === "") { alert("Please paste some text."); return; }
 
         document.getElementById('user-loader').style.display = 'block';
-        document.getElementById('user-results').style.display = 'none';
-        document.getElementById('save-status').innerText = '';
+        resultsContainer.style.display = 'none';
+        resultsContainer.innerHTML = ''; // Clear previous results
 
+        try {
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: userInput })
+            });
+            
+            const result = await response.json();
 
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: userInput })
-        });
-        
-        const result = await response.json();
-        currentAnalysisResult = result; // Store for saving
+            if (!response.ok) {
+                // Throw an error to be caught by the catch block
+                throw result;
+            }
+            
+            currentAnalysisResult = result; // Store for saving
+            resultsContainer.innerHTML = `
+                <h3>Your Analysis</h3>
+                <p><strong>Current Archetype:</strong> ${result.current_archetype}</p>
+                <p><strong>Prediction Reasoning:</strong> ${result.prediction_reasoning}</p>
+                <p><strong>Predicted Narrative:</strong> ${result.predicted_narrative}</p>
+                <button id="saveButton">Save This Analysis Anonymously</button>
+                <p id="save-status" style="font-size: 0.9em; color: green;"></p>
+            `;
+            // Re-add event listener for the new save button
+            document.getElementById('saveButton').addEventListener('click', saveUserAnalysis);
 
-        document.getElementById('archetype').innerText = result.current_archetype;
-        document.getElementById('reasoning').innerText = result.prediction_reasoning;
-        document.getElementById('narrative').innerText = result.predicted_narrative;
-
-        document.getElementById('user-loader').style.display = 'none';
-        document.getElementById('user-results').style.display = 'block';
-    });
-    
-    // --- Save Analysis ---
-    document.getElementById('saveButton').addEventListener('click', async () => {
-        if (!currentAnalysisResult) return;
-        
-        document.getElementById('save-status').innerText = 'Saving...';
-
-        const response = await fetch('/api/save-history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ analysis: currentAnalysisResult })
-        });
-        
-        if (response.ok) {
-            document.getElementById('save-status').innerText = 'Analysis saved successfully! Thank you for contributing to our research.';
-        } else {
-            document.getElementById('save-status').innerText = 'Could not save analysis.';
+        } catch (error) {
+            resultsContainer.innerHTML = `
+                <div class="error-box">
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p><strong>Debug Info:</strong></p>
+                    <pre>${JSON.stringify(error.debug_info, null, 2)}</pre>
+                </div>
+            `;
+        } finally {
+            document.getElementById('user-loader').style.display = 'none';
+            resultsContainer.style.display = 'block';
         }
     });
+    
+    // --- Save Analysis Function ---
+    async function saveUserAnalysis() {
+        if (!currentAnalysisResult) return;
+        const saveStatus = document.getElementById('save-status');
+        saveStatus.innerText = 'Saving...';
 
+        try {
+            const response = await fetch('/api/save-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ analysis: currentAnalysisResult })
+            });
+            if (!response.ok) throw new Error('Failed to save.');
+
+            saveStatus.innerText = 'Analysis saved successfully! Thank you for contributing to our research.';
+        } catch (err) {
+            saveStatus.innerText = 'Could not save analysis.';
+        }
+    }
 </script>
 </body>
 </html>
