@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Behavioral Trajectory Analyzer</title>
+    <style> /* Basic styling for clarity */
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        textarea { width: 100%; height: 150px; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        #results { border-left: 3px solid #007bff; padding-left: 15px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Behavioral Trajectory Analyzer</h1>
+    <p><strong>Instructions:</strong> Paste a sample of your recent social media posts (5-10 posts) into the box below to analyze your online engagement profile and predict its 6-month trajectory.</p>
+    
+    <textarea id="userInput" placeholder="Paste your social media posts here..."></textarea>
+    <button id="analyzeButton">Analyze My Trajectory</button>
+    
+    <div id="loading" style="display: none;"><h3>Analyzing...</h3> This may take a moment.</div>
+    <div id="results" style="display: none;">
+        <h2>Analysis Results</h2>
+        <p><strong>Current Archetype:</strong> <span id="archetype"></span></p>
+        <p><strong>Prediction Reasoning:</strong> <span id="reasoning"></span></p>
+        <p><strong>Predicted 6-Month Narrative:</strong> <span id="narrative"></span></p>
+    </div>
+
+    <script>
+        const analyzeButton = document.getElementById('analyzeButton');
+        const userInput = document.getElementById('userInput');
+        const loadingDiv = document.getElementById('loading');
+        const resultsDiv = document.getElementById('results');
+
+        analyzeButton.addEventListener('click', async () => {
+            if (userInput.value.trim() === "") {
+                alert("Please paste some text to analyze.");
+                return;
+            }
+
+            loadingDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+
+            try {
+                // Call our OWN backend serverless function
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: userInput.value })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // Display results
+                document.getElementById('archetype').innerText = result.current_archetype;
+                document.getElementById('reasoning').innerText = result.prediction_reasoning;
+                document.getElementById('narrative').innerText = result.predicted_narrative;
+
+                loadingDiv.style.display = 'none';
+                resultsDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error("Error:", error);
+                alert("An error occurred. Check the console for details.");
+                loadingDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
