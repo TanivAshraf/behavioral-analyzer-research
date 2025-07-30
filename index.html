@@ -4,71 +4,136 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Behavioral Trajectory Analyzer</title>
-    <style> /* Basic styling for clarity */
-        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
-        textarea { width: 100%; height: 150px; margin-bottom: 10px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
-        #results { border-left: 3px solid #007bff; padding-left: 15px; margin-top: 20px; }
+    <style> /* Simple styling */
+        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 15px; background-color: #f9f9f9; }
+        .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        textarea { width: 100%; height: 150px; }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .personality-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+        .loader { text-align: center; padding: 20px; font-style: italic; color: #666; }
     </style>
 </head>
 <body>
-    <h1>Behavioral Trajectory Analyzer</h1>
-    <p><strong>Instructions:</strong> Paste a sample of your recent social media posts (5-10 posts) into the box below to analyze your online engagement profile and predict its 6-month trajectory.</p>
-    
-    <textarea id="userInput" placeholder="Paste your social media posts here..."></textarea>
-    <button id="analyzeButton">Analyze My Trajectory</button>
-    
-    <div id="loading" style="display: none;"><h3>Analyzing...</h3> This may take a moment.</div>
-    <div id="results" style="display: none;">
-        <h2>Analysis Results</h2>
-        <p><strong>Current Archetype:</strong> <span id="archetype"></span></p>
-        <p><strong>Prediction Reasoning:</strong> <span id="reasoning"></span></p>
-        <p><strong>Predicted 6-Month Narrative:</strong> <span id="narrative"></span></p>
+
+    <div class="container">
+        <h1>Behavioral Trajectory Analyzer</h1>
+        <p>This tool analyzes online communication to determine a behavioral archetype and predict its 6-month trajectory. See live examples below, then analyze your own profile.</p>
     </div>
 
-    <script>
-        const analyzeButton = document.getElementById('analyzeButton');
-        const userInput = document.getElementById('userInput');
-        const loadingDiv = document.getElementById('loading');
-        const resultsDiv = document.getElementById('results');
+    <div class="container">
+        <h2>Live Analysis: Public Personalities</h2>
+        <div id="famous-personalities">
+            <div class="loader">Loading live analyses...</div>
+        </div>
+    </div>
 
-        analyzeButton.addEventListener('click', async () => {
-            if (userInput.value.trim() === "") {
-                alert("Please paste some text to analyze.");
-                return;
-            }
+    <div class="container">
+        <h2>Analyze Your Profile</h2>
+        <p>Copy and paste 5-10 of your recent public posts or comments below.</p>
+        <textarea id="userInput" placeholder="Paste your text here..."></textarea>
+        <button id="analyzeButton">Analyze My Trajectory</button>
+        <div id="user-loader" class="loader" style="display: none;">Analyzing...</div>
+        <div id="user-results" style="display: none;">
+            <h3>Your Analysis</h3>
+            <p><strong>Current Archetype:</strong> <span id="archetype"></span></p>
+            <p><strong>Prediction Reasoning:</strong> <span id="reasoning"></span></p>
+            <p><strong>Predicted Narrative:</strong> <span id="narrative"></span></p>
+            <button id="saveButton">Save This Analysis Anonymously</button>
+            <p id="save-status" style="font-size: 0.9em; color: green;"></p>
+        </div>
+    </div>
 
-            loadingDiv.style.display = 'block';
-            resultsDiv.style.display = 'none';
+<script>
+    // --- Famous Personalities to Analyze ---
+    const famousProfiles = [
+        { name: 'Elon Musk', url: 'https://twitter.com/elonmusk' },
+        { name: 'Satya Nadella', url: 'https://www.linkedin.com/in/satyanadella/' },
+        { name: 'Brene Brown', url: 'https://www.instagram.com/brenebrown/' },
+        { name: 'Naval Ravikant', url: 'https://twitter.com/naval' },
+        { name: 'Gary Vaynerchuk', url: 'https://www.linkedin.com/in/garyvaynerchuk/' }
+    ];
 
-            try {
-                // Call our OWN backend serverless function
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: userInput.value })
-                });
+    let currentAnalysisResult = null; // Store the user's latest analysis
 
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.statusText}`);
+    // --- On Page Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('famous-personalities');
+        container.innerHTML = '<div class="loader">Loading live analyses...</div>';
+        
+        const promises = famousProfiles.map(profile => 
+            fetch(`/api/get-famous?url=${encodeURIComponent(profile.url)}&name=${encodeURIComponent(profile.name)}`)
+            .then(res => res.json())
+        );
+
+        Promise.all(promises).then(results => {
+            container.innerHTML = ''; // Clear loader
+            results.forEach(result => {
+                const card = document.createElement('div');
+                card.className = 'personality-card';
+                if (result.error) {
+                    card.innerHTML = `<h3>${result.name}</h3><p><em>Error fetching or analyzing profile: ${result.error}</em></p>`;
+                } else {
+                    card.innerHTML = `
+                        <h3>${result.name}</h3>
+                        <p><strong>Current Archetype:</strong> ${result.analysis.current_archetype}</p>
+                        <p><strong>Predicted Narrative:</strong> ${result.analysis.predicted_narrative}</p>
+                    `;
                 }
-
-                const result = await response.json();
-                
-                // Display results
-                document.getElementById('archetype').innerText = result.current_archetype;
-                document.getElementById('reasoning').innerText = result.prediction_reasoning;
-                document.getElementById('narrative').innerText = result.predicted_narrative;
-
-                loadingDiv.style.display = 'none';
-                resultsDiv.style.display = 'block';
-
-            } catch (error) {
-                console.error("Error:", error);
-                alert("An error occurred. Check the console for details.");
-                loadingDiv.style.display = 'none';
-            }
+                container.appendChild(card);
+            });
+        }).catch(err => {
+            container.innerHTML = '<p>Could not load famous personality analyses. Please try again later.</p>';
         });
-    </script>
+    });
+
+    // --- User Analysis ---
+    document.getElementById('analyzeButton').addEventListener('click', async () => {
+        const userInput = document.getElementById('userInput').value;
+        if (userInput.trim() === "") { alert("Please paste some text."); return; }
+
+        document.getElementById('user-loader').style.display = 'block';
+        document.getElementById('user-results').style.display = 'none';
+        document.getElementById('save-status').innerText = '';
+
+
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: userInput })
+        });
+        
+        const result = await response.json();
+        currentAnalysisResult = result; // Store for saving
+
+        document.getElementById('archetype').innerText = result.current_archetype;
+        document.getElementById('reasoning').innerText = result.prediction_reasoning;
+        document.getElementById('narrative').innerText = result.predicted_narrative;
+
+        document.getElementById('user-loader').style.display = 'none';
+        document.getElementById('user-results').style.display = 'block';
+    });
+    
+    // --- Save Analysis ---
+    document.getElementById('saveButton').addEventListener('click', async () => {
+        if (!currentAnalysisResult) return;
+        
+        document.getElementById('save-status').innerText = 'Saving...';
+
+        const response = await fetch('/api/save-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ analysis: currentAnalysisResult })
+        });
+        
+        if (response.ok) {
+            document.getElementById('save-status').innerText = 'Analysis saved successfully! Thank you for contributing to our research.';
+        } else {
+            document.getElementById('save-status').innerText = 'Could not save analysis.';
+        }
+    });
+
+</script>
 </body>
 </html>
