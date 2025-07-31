@@ -45,10 +45,6 @@
     </div>
 
 <script>
-    // --- Changelog ---
-    // 1. Made the renderAnalysis function more robust to handle different error formats.
-    // 2. Improved the catch block for user analysis to prevent JSON parsing errors.
-    
     const famousProfiles = [
         { name: 'Elon Musk', url: 'https://twitter.com/elonmusk' }
     ];
@@ -56,19 +52,11 @@
     let currentAnalysisResult = null;
 
     function renderAnalysis(result) {
-        if (!result) {
-            return `<div class="error-box"><p>An unknown error occurred: Received an empty result.</p></div>`;
-        }
+        if (!result) { return `<div class="error-box"><p>An unknown error occurred: Received an empty result.</p></div>`; }
         if (result.error || (result.debug_info && result.debug_info.message)) {
             const errorMessage = result.error || "An internal server error occurred.";
             const debugInfo = result.debug_info || { message: result.error };
-            return `
-                <div class="error-box">
-                    <p><strong>Error:</strong> ${errorMessage}</p>
-                    <p><strong>Debug Info:</strong></p>
-                    <pre>${JSON.stringify(debugInfo, null, 2)}</pre>
-                </div>
-            `;
+            return `<div class="error-box"><p><strong>Error:</strong> ${errorMessage}</p><p><strong>Debug Info:</strong></p><pre>${JSON.stringify(debugInfo, null, 2)}</pre></div>`;
         }
         return `
             <div class="analysis-section"><h4>Your Current Style</h4><p>${result.current_style}</p></div>
@@ -112,10 +100,7 @@
 
             if (!response.ok) { throw result; }
             
-            // This is the new special check for the instructional error message from the AI
-            if (result.message && result.message.includes("For a proper analysis")) {
-                throw result;
-            }
+            if (result.message && result.message.includes("For a proper analysis")) { throw result; }
             
             currentAnalysisResult = result;
             resultsContainer.innerHTML = `<h3>Your Analysis</h3>` + renderAnalysis(result) + 
