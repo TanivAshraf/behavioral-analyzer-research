@@ -11,7 +11,6 @@
         textarea { width: 100%; box-sizing: border-box; height: 150px; }
         button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
-        .personality-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
         .loader { text-align: center; padding: 20px; font-style: italic; color: #666; }
         .error-box { border: 1px solid #d9534f; background-color: #f2dede; color: #a94442; padding: 15px; margin-top: 10px; border-radius: 5px; }
         pre { white-space: pre-wrap; word-wrap: break-word; background-color: #eee; padding: 10px; border-radius: 4px; }
@@ -23,31 +22,29 @@
 
     <div class="container">
         <h1>Behavioral Trajectory Analyzer</h1>
-        <p>This tool analyzes online communication to determine a behavioral archetype and predict its 6-month trajectory. See a live example below, then analyze your own profile.</p>
+        <p>This tool analyzes your online communication to determine a behavioral archetype and predict its 6-month trajectory.</p>
     </div>
 
-    <div class="container">
-        <h2>Live Analysis: Public Personality</h2>
-        <div id="famous-personalities">
-            <div class="loader">Loading and analyzing live profile... This may take a minute.</div>
-        </div>
-    </div>
+    <!-- 
+        --- Changelog ---
+        The entire "Live Analysis" container for Elon Musk has been removed from the HTML.
+    -->
 
     <div class="container">
         <h2>Analyze Your Profile</h2>
-        <p>Copy and paste 5-10 of your recent public posts or comments below.</p>
-        <textarea id="userInput" placeholder="Paste your text here..."></textarea>
+        <p>Copy and paste your public social media URL (e.g., your LinkedIn profile) or 5-10 of your recent posts/comments below.</p>
+        <textarea id="userInput" placeholder="Paste your URL or text here..."></textarea>
         <button id="analyzeButton">Analyze My Trajectory</button>
-        <div id="user-loader" class="loader" style="display: none;">Analyzing...</div>
+        <div id="user-loader" class="loader" style="display: none;">Analyzing... This may take a moment.</div>
         <div id="user-results-container" style="display: none;">
              <!-- Results will be injected here -->
         </div>
     </div>
 
 <script>
-    const famousProfiles = [
-        { name: 'Elon Musk', url: 'https://twitter.com/elonmusk' }
-    ];
+    // --- Changelog ---
+    // 1. Removed the 'famousProfiles' array and the 'DOMContentLoaded' event listener that fetched the live analysis.
+    // 2. The script now only contains logic for the user-input section.
 
     let currentAnalysisResult = null;
 
@@ -66,20 +63,6 @@
             <div class="analysis-section"><h4>An Actionable Tip</h4><p>${result.actionable_tip}</p></div>
         `;
     }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const container = document.getElementById('famous-personalities');
-        const profile = famousProfiles[0];
-        fetch(`/api/get-famous?url=${encodeURIComponent(profile.url)}&name=${encodeURIComponent(profile.name)}`)
-        .then(res => res.json())
-        .then(result => {
-            container.innerHTML = '';
-            const card = document.createElement('div');
-            card.className = 'personality-card';
-            card.innerHTML = `<h3>${result.name}</h3>` + renderAnalysis(result.analysis || result);
-            container.appendChild(card);
-        });
-    });
 
     document.getElementById('analyzeButton').addEventListener('click', async () => {
         const userInput = document.getElementById('userInput').value;
@@ -100,7 +83,7 @@
 
             if (!response.ok) { throw result; }
             
-            if (result.message && result.message.includes("For a proper analysis")) { throw result; }
+            if (result.message) { throw result; }
             
             currentAnalysisResult = result;
             resultsContainer.innerHTML = `<h3>Your Analysis</h3>` + renderAnalysis(result) + 
