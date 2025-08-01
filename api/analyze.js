@@ -1,11 +1,12 @@
-// --- FINAL INTELLIGENT VERSION ---
-// --- This version detects URLs and scrapes them for content before analysis ---
+// --- FINAL Polished Version ---
+// --- This version handles URL inputs directly without calling the AI ---
 
 async function getGeminiAnalysis(text) {
     const API_KEY = process.env.GEMINI_API_KEY;
     if (!API_KEY) throw new Error("SERVER CONFIG ERROR: GEMINI_API_KEY is not set.");
     const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
     
+    // The prompt no longer needs the special URL handling instruction, making it simpler.
     const prompt = `
     You are an expert, empathetic social media analyst and coach. Your goal is to analyze a user's text and provide a friendly, insightful, and actionable analysis. Do not be robotic or overly academic.
 
@@ -43,47 +44,22 @@ async function getGeminiAnalysis(text) {
 export default async function handler(req, res) {
   try {
     const { text } = req.body;
-    const trimmedText = text ? text.trim() : '';
-
-    if (!trimmedText) {
+    if (!text || text.trim() === '') {
         return res.status(400).json({ message: 'Text input cannot be empty.' });
     }
 
-    let textToAnalyze = trimmedText;
-
     // --- Changelog ---
-    // The core logic has been upgraded to intelligently handle URLs.
-    const containsSpaces = /\s/.test(trimmedText);
-    const containsDot = trimmedText.includes('.');
-
-    if (!containsSpaces && containsDot) {
-        console.log(`Input detected as URL: ${trimmedText}. Scraping content...`);
-        
-        const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY;
-        if (!SCRAPINGBEE_API_KEY) throw new Error("SERVER CONFIG ERROR: SCRAPINGBEE_API_KEY is not set.");
-
-        // We need to ensure the URL has a protocol (http://) for the scraper to work.
-        const fullUrl = trimmedText.startsWith('http') ? trimmedText : `http://${trimmedText}`;
-
-        const params = new URLSearchParams({
-            api_key: SCRAPINGBEE_API_KEY,
-            url: fullUrl,
-            extract_rules: '{"text":"body"}',
+    // Added a robust check to see if the input is a URL.
+    // This is more reliable than asking the AI to do it.
+    const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+    if (urlRegex.test(text.trim())) {
+        return res.status(400).json({ 
+            message: "For a proper analysis, please paste the actual text content from your posts, not just a link.",
+            debug_info: { message: "Input was identified as a URL." }
         });
-        
-        const scrapeResponse = await fetch(`https://app.scrapingbee.com/api/v1/?${params.toString()}`);
-        
-        if (!scrapeResponse.ok) {
-            const errorText = await scrapeResponse.text();
-            throw new Error(`Scraping service failed (Status: ${scrapeResponse.status}). Response: ${errorText}`);
-        }
-        
-        const scrapedData = await scrapeResponse.json();
-        textToAnalyze = scrapedData.text; // We will now analyze the scraped text
     }
     
-    // The analysis function is now called with either the original text or the scraped text.
-    const analysisResult = await getGeminiAnalysis(textToAnalyze.substring(0, 15000));
+    const analysisResult = await getGeminiAnalysis(text);
     
     res.status(200).json(analysisResult);
 
